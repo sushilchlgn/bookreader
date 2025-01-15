@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Comic Book</title>
+</head>
+<body>
+    <h1>Upload a Comic Book (.cbz) File</h1>
+    <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+        <label for="file">Choose .cbz file:</label>
+        <input type="file" name="file" id="file" accept=".cbz" required>
+        <button type="submit">Upload</button>
+    </form>
+
+    <div id="metadata" style="display: none;">
+        <h2>Comic Book Metadata</h2>
+        <p><strong>Number of Pages: </strong><span id="file-count"></span></p>
+        <p><strong>First Image: </strong><span id="first-image"></span></p>
+        <h3>Images:</h3>
+        <div id="image-gallery"></div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = async function(event) {
+            event.preventDefault();  // Prevent the form from submitting normally
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            formData.append('file', fileInput.files[0]);
+    
+            // Send the file to the server using Fetch API
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+    
+            const result = await response.json();
+    
+            // Check if the response has an error
+            if (result.error) {
+                alert('Error: ' + result.error);
+            } else {
+                // If successful, display the metadata
+                document.getElementById('file-count').textContent = result.file_count;
+                document.getElementById('first-image').textContent = result.first_image;
+    
+                const imageGallery = document.getElementById('image-gallery');
+                imageGallery.innerHTML = ''; // Clear any previous images
+    
+                // Loop through the file list and add images to the gallery
+                result.extracted_images.forEach(file => {
+                    const imgElement = document.createElement('img');
+                    imgElement.src = `/uploads/images/${file}`; // Path to the extracted image
+                    imgElement.alt = file;
+                    imgElement.style.maxWidth = '200px'; // Optional: Control the image size
+                    imgElement.style.margin = '10px'; // Optional: Add some spacing between images
+                    imageGallery.appendChild(imgElement);
+                });
+    
+                // Show the metadata section
+                document.getElementById('metadata').style.display = 'block';
+            }
+        };
+    </script>
+    
+</body>
+</html>
