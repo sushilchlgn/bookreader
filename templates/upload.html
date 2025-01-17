@@ -4,6 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload Comic Book</title>
+    <style>
+        /* Optional: Add a spinner for lazy-loading effect */
+        .lazy {
+            background-color: #f0f0f0;
+            width: 200px;
+            height: 300px;
+            display: inline-block;
+            position: relative;
+        }
+
+        .lazy img {
+            display: none;
+            max-width: 100%;
+            max-height: 100%;
+        }
+    </style>
 </head>
 <body>
     <h1>Upload a Comic Book (.cbz) File</h1>
@@ -22,47 +38,84 @@
     </div>
 
     <script>
+        const LOAD_BATCH_SIZE = 20; // Number of images to load at a time
+
         document.getElementById('uploadForm').onsubmit = async function(event) {
-            event.preventDefault();  // Prevent the form from submitting normally
-            
+            event.preventDefault(); // Prevent default form submission
+
             const formData = new FormData();
             const fileInput = document.getElementById('file');
             formData.append('file', fileInput.files[0]);
-    
+
             // Send the file to the server using Fetch API
             const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
             });
-    
+
             const result = await response.json();
-    
-            // Check if the response has an error
+
             if (result.error) {
                 alert('Error: ' + result.error);
             } else {
-                // If successful, display the metadata
+                // Update metadata
                 document.getElementById('file-count').textContent = result.file_count;
                 document.getElementById('first-image').textContent = result.first_image;
-    
+
                 const imageGallery = document.getElementById('image-gallery');
-                imageGallery.innerHTML = ''; // Clear any previous images
-    
-                // Loop through the file list and add images to the gallery
-                result.extracted_images.forEach(file => {
-                    const imgElement = document.createElement('img');
-                    imgElement.src = `/uploads/images/${file}`; // Path to the extracted image
-                    imgElement.alt = file;
-                    imgElement.style.maxWidth = '200px'; // Optional: Control the image size
-                    imgElement.style.margin = '10px'; // Optional: Add some spacing between images
-                    imageGallery.appendChild(imgElement);
+                imageGallery.innerHTML = ''; // Clear existing content
+
+                // Load initial batch of images
+                loadImages(result.extracted_images, 0);
+
+                // Lazy-load more images on scroll
+                let currentIndex = LOAD_BATCH_SIZE;
+                window.addEventListener('scroll', () => {
+                    if (window.scrollY + window.innerHeight >= document.body.offsetHeight) {
+                        if (currentIndex < result.extracted_images.length) {
+                            loadImages(result.extracted_images, currentIndex);
+                            currentIndex += LOAD_BATCH_SIZE;
+                        }
+                    }
                 });
-    
-                // Show the metadata section
+
                 document.getElementById('metadata').style.display = 'block';
             }
         };
+
+        function loadImages(imageList, startIndex) {
+            const imageGallery = document.getElementById('image-gallery');
+
+            // Load a batch of images
+            for (let i = startIndex; i < startIndex + LOAD_BATCH_SIZE && i < imageList.length; i++) {
+                const imagePath = imageList[i];
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('lazy');
+
+                const img = document.createElement('img');
+                img.dataset.src = `/uploads/images/${imagePath}`;
+                img.alt = imagePath;
+                img.onload = () => {
+                    wrapper.classList.remove('lazy');
+                    img.style.display = 'block';
+                };
+
+                wrapper.appendChild(img);
+                imageGallery.appendChild(wrapper);
+
+                // Lazy-load the image
+                const observer = new IntersectionObserver(entries => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            img.src = img.dataset.src; // Set the actual source
+                            observer.disconnect(); // Stop observing once loaded
+                        }
+                    });
+                });
+
+                observer.observe(wrapper);
+            }
+        }
     </script>
-    
 </body>
 </html>
