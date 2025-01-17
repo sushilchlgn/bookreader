@@ -1,4 +1,5 @@
 import os
+import uuid
 from flask import Flask, request, render_template, jsonify, send_from_directory
 from zipfile import ZipFile
 
@@ -47,7 +48,7 @@ def upload_file():
 
         try:
             # Process the uploaded .cbz file
-            metadata = process_cbz(filepath)
+            metadata = process_cbz(filepath, filename)
 
             return jsonify(metadata)
 
@@ -57,9 +58,15 @@ def upload_file():
 
     return jsonify({"error": "Invalid file format"}), 400
 
-# Function to process .cbz file (basically a ZIP file)
-def process_cbz(filepath):
+# Function to process .cbz file (extract to a folder named after the uploaded file)
+def process_cbz(filepath, filename):
     metadata = {}
+    
+    # Create a folder named after the uploaded file (without extension)
+    folder_name = os.path.splitext(filename)[0]
+    extraction_path = os.path.join(EXTRACTED_IMAGES_FOLDER, folder_name)
+    os.makedirs(extraction_path, exist_ok=True)
+
     extracted_files = []  # List to store extracted image filenames
     
     with ZipFile(filepath, 'r') as zip_ref:
@@ -67,25 +74,20 @@ def process_cbz(filepath):
         metadata['file_count'] = len(zip_ref.namelist())  # Number of files in the archive
         metadata['files'] = zip_ref.namelist()  # List of file names in the archive
 
-        # Optionally, extract the first image (if it's a comic book file)
+        # Extract all images to the named folder
         for file in zip_ref.namelist():
             if file.lower().endswith(('jpg', 'jpeg', 'png')):
-                metadata['first_image'] = file  # Store the name of the first image
-                break
-
-        # Extract all images to the extracted_images folder
-        for file in zip_ref.namelist():
-            if file.lower().endswith(('jpg', 'jpeg', 'png')):
-                zip_ref.extract(file, EXTRACTED_IMAGES_FOLDER)
-                extracted_files.append(file)  # Store the extracted image filenames
+                zip_ref.extract(file, extraction_path)
+                extracted_files.append(os.path.join(folder_name, file))  # Store the relative path to the image
 
     metadata['extracted_images'] = extracted_files
     return metadata
 
 # Route to serve the extracted images
-@app.route('/uploads/images/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(EXTRACTED_IMAGES_FOLDER, filename)
+@app.route('/uploads/images/<folder>/<filename>')
+def uploaded_file(folder, filename):
+    folder_path = os.path.join(EXTRACTED_IMAGES_FOLDER, folder)
+    return send_from_directory(folder_path, filename)
 
 if __name__ == '__main__':
     app.run(debug=True)
